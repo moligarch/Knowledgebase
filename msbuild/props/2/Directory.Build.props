@@ -1,0 +1,38 @@
+<Project DefaultTargets="Build" ToolsVersion="14.0"
+    xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+    <Import Project="CiBuildConfiguration.props" />
+
+    <PropertyGroup>
+        <PlatformToolset Condition="'$(BuildCiToolsetVersion)' != ''">$(BuildCiToolsetVersion)</PlatformToolset>
+        <VCToolsVersion Condition="'$(BuildCiToolsVersion)' != ''">$(BuildCiToolsVersion)</VCToolsVersion>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <CiConfiguration>$(Configuration)</CiConfiguration>
+        <CiConfiguration Condition="$(Configuration.Equals('Release', StringComparison.OrdinalIgnoreCase)) Or $(Configuration.Equals('ReleaseDll', StringComparison.OrdinalIgnoreCase))">Release</CiConfiguration>
+		<CiConfiguration Condition="$(Configuration.Equals('Release_ML', StringComparison.OrdinalIgnoreCase))">Release_ML</CiConfiguration>
+		<CiConfiguration Condition="$(Configuration.Equals('Debug', StringComparison.OrdinalIgnoreCase)) Or $(Configuration.Equals('DebugDll', StringComparison.OrdinalIgnoreCase))">Debug</CiConfiguration>
+		
+        <OutDir>$(MSBuildThisFileDirectory)Build\bin\$(PlatformShortName)\$(CiConfiguration)\</OutDir>
+		<IntDir>$(MSBuildThisFileDirectory)Build\obj\$(ProjectName)\$(PlatformShortName)\$(CiConfiguration)\</IntDir>
+		
+		<CiDebugCommand Condition="'$(CiDebugCommand)'==''">$(OutDir)$(TargetFileName)</CiDebugCommand>
+    </PropertyGroup>
+
+    <PropertyGroup Label="Vcpkg">
+        <VcpkgEnableManifest>true</VcpkgEnableManifest>
+    </PropertyGroup>
+    <PropertyGroup Label="Vcpkg">
+        <VcpkgInstalledDir>C:\vcpkg_install_$(PlatformShortName)</VcpkgInstalledDir>
+        <VcpkgAdditionalInstallOptions>--overlay-ports=C:\vcpkg_install\vcpkg_ports</VcpkgAdditionalInstallOptions>
+        <VcpkgTriplet>$(PlatformShortName)-windows-$(PlatformToolset)</VcpkgTriplet>
+    </PropertyGroup>
+
+
+    <PropertyGroup>
+        <VcpkgTripletToolsDir Condition="'$(VcpkgTripletToolsDir)'==''">$(VcpkgInstalledDir)\$(VcpkgTriplet)\tools</VcpkgTripletToolsDir>
+        <VcpkgToolsDir Condition="'$(VcpkgToolsDir)'==''">$(VcpkgInstalledDir)\$(PlatformShortName)-windows\tools</VcpkgToolsDir>
+    </PropertyGroup>
+
+</Project>

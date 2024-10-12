@@ -1,0 +1,10 @@
+<Project DefaultTargets="Build" ToolsVersion="14.0"
+    xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <IntDir>$(MSBuildThisFileDirectory)Build\obj\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
+        <OutDir>$(MSBuildThisFileDirectory)Build\Installer\</OutDir>
+        <ObjectPath>$(IntDir)</ObjectPath>
+        <!-- <OutputName>$(OutputName)_$(Platform)</OutputName> -->
+        <!-- <TargetName>AgentInstaller_$(Platform)</TargetName> -->
+    </PropertyGroup>
+</Project>
