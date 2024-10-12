@@ -1,0 +1,30 @@
+####################################################
+#       Gitlab CI configuration template           #
+#                                                  #
+#   Ver:    1.0.0                                  #
+#   Author: Moein Verkiani                         #
+#   Module: Reference                              #
+#                                                  #
+#                                                  #
+####################################################
+
+##################### References ######################
+.Rule:PushExceptOnMain:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH' 
+      when: always
+      allow_failure: false
+
+.Rule:MergeRequestOnMain:
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+      allow_failure: false
+
+.Rule:MergedToMain:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"'
+      #when: manual
+      #use manual after deploy stage implemented
+      when: never 
+#######################################################

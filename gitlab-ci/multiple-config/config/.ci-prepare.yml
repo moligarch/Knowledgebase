@@ -1,0 +1,31 @@
+####################################################
+#       Gitlab CI configuration template           #
+#                                                  #
+#   Ver:    1.0.0                                  #
+#   Author: Moein Verkiani                         #
+#   Module: Reference                              #
+#                                                  #
+#                                                  #
+####################################################
+
+variables:
+  CONFIGURATION:                /p:Configuration=Release    
+  DISABLE_VCPKG_MANIFEST:       /p:VcpkgEnableManifest=false
+  TARGET_PLATFORM_X64:          /p:Platform=x64             # Adjust the arguments as necessary
+  TARGET_PLATFORM_X86:          /p:Platform=x86             # Adjust the arguments as necessary
+  SOLUTION:                     ./RuleConverter.sln         # Adjust the arguments as necessary
+
+
+##################### References ######################
+.PrepareBuilder:
+  script:
+    - $installPath = &(Join-Path ${env:ProgramFiles(x86)} "\Microsoft Visual Studio\Installer\vswhere.exe") -latest -property installationpath
+    - Import-Module (Join-Path $installPath "/Common7/Tools/Microsoft.VisualStudio.DevShell.dll")
+    - Enter-VsDevShell -VsInstallPath $installPath -SkipAutomaticLocation
+
+.Test:ExtractFilter:
+  script:
+    - echo "Parsing commit message for test specifications..."
+    - $TEST_FILTER = & {param([string]$Message) if($Message -match '\[\[([^\]]+)\]\]'){return $Matches[1]}else{return ""}} -Message $CI_COMMIT_MESSAGE
+    - echo "Test suite and case extracted:`n$TEST_FILTER"
+#######################################################

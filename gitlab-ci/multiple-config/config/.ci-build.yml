@@ -1,0 +1,40 @@
+####################################################
+#       Gitlab CI configuration template           #
+#                                                  #
+#   Ver:    1.0.0                                  #
+#   Author: Moein Verkiani                         #
+#   Stage:  Build                                  #
+#                                                  #
+#                                                  #
+####################################################
+
+include:
+  - local: 'config/.ci-prepare.yml'
+
+variables:
+  BUILD_PROJECT:                /t:RuleConverter            # Adjust the arguments as necessary
+
+
+######################### Build #########################
+
+###### X64 ######
+Build:X64:
+  before_script:
+    - !reference [.PrepareBuilder, script]
+  script:
+    - echo "Hello, $GITLAB_USER_LOGIN! `nBuild started ..."
+    - msbuild.exe $SOLUTION $BUILD_PROJECT $CONFIGURATION $TARGET_PLATFORM_X64 $DISABLE_VCPKG_MANIFEST -m
+    - pwd
+#################
+
+###### X86 ######
+Build:X86:
+  before_script:
+    - !reference [.PrepareBuilder, script]
+  script:
+    - echo "Hello, $GITLAB_USER_LOGIN! `nBuild started ..."
+    - msbuild.exe $SOLUTION $BUILD_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $DISABLE_VCPKG_MANIFEST -m
+    - pwd
+#################
+
+#########################################################

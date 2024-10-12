@@ -1,0 +1,28 @@
+{
+  "name": "collector-lib",
+  "version-string": "1.1.0",
+  "license": "mit",
+  "dependencies": [
+    "boost-algorithm",
+    "boost-uuid",
+    "boost-property-tree",
+    "msgpack",
+    "gtest",
+    "pugixml"
+  ],
+  "overrides": [
+    {
+      "name": "boost-algorithm",
+      "version": "1.82.0"
+    },
+    {
+      "name": "boost-uuid",
+      "version": "1.82.0"
+    },
+    {
+      "name": "boost-property-tree",
+      "version": "1.82.0"
+    }
+  ],
+  "builtin-baseline": "80403036a665cb8fcc1a1b3e17593d20b03b2489"
+}

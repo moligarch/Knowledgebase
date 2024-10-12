@@ -1,0 +1,81 @@
+####################################################
+#       Gitlab CI configuration template           #
+#                                                  #
+#   Ver:    1.0.0                                  #
+#   Author: Moein Verkiani                         #
+#   Stage:  Test                                   #
+#                                                  #
+#                                                  #
+####################################################
+
+include:
+  - local: 'config/.ci-prepare.yml'
+
+variables:
+  TEST_PROJECT:                 /t:RuleConverter_Test       # Adjust the arguments as necessary
+
+######################### Test #########################
+###### X64 ######
+Test:X64:
+  variables:
+    REPORT_FILE:      test_x64_report.xml
+  before_script: 
+    - !reference [.PrepareBuilder, script]
+    - !reference [.Test:ExtractFilter, script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X64 $DISABLE_VCPKG_MANIFEST -m
+  script:
+    # Temorary change current dir to test executable folder as some tests use relative path to get required sample (../../../../)
+    - cd Build/bin/x64/Release/
+    - echo "Running x64 tests ..."
+    - ./RuleConverter_Test.exe --gtest_filter=$TEST_FILTER --gtest_output="xml:../../../../$REPORT_FILE"
+    - cd ../../../../
+    # Come Back to root dir of repository
+    - pwd
+#################
+###### X86 ######
+Test:X86:
+  variables:
+    REPORT_FILE:      test_x86_report.xml
+  before_script:
+    - !reference [.PrepareBuilder, script]
+    - !reference [.Test:ExtractFilter, script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $DISABLE_VCPKG_MANIFEST -m
+  script:
+    # Temorary change current dir to test executable folder as some tests use relative path to get required sample (../../../../)
+    - cd Build/bin/x86/Release/
+    - echo "Running x86 tests ..."
+    - ./RuleConverter_Test.exe --gtest_filter=$TEST_FILTER --gtest_output="xml:../../../../$REPORT_FILE"
+    - cd ../../../../
+    # Come Back to root dir of repository
+    - pwd
+#################
+###### All ######
+Test:All:
+  variables:
+    REPORT_FILE_X64:      test_x64_report.xml
+    REPORT_FILE_X86:      test_x86_report.xml
+  before_script:
+    - !reference [.PrepareBuilder, script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing X64 Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X64 $DISABLE_VCPKG_MANIFEST -m
+    - echo "Preparing X86 Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $DISABLE_VCPKG_MANIFEST -m
+  script:
+    - echo "Running All tests(x64) ..."
+    # Temorary change current dir to test executable folder as some tests use relative path to get required sample (../../../../)
+    - cd Build/bin/x64/Release/
+    - ./RuleConverter_Test.exe --gtest_output="xml:../../../../$REPORT_FILE_X64"
+    - cd ../../../../
+    # Come Back to root dir of repository
+    - echo "=======  x64 Tests completed =======`n"
+    - echo "Running All tests(x86) ..."
+    - cd Build/bin/x86/Release/
+    - ./RuleConverter_Test.exe --gtest_output="xml:../../../../$REPORT_FILE_X86"
+    - cd ../../../../
+    # Come Back to root dir of repository
+    - echo "=======  x86 Tests completed =======`n"
+    - pwd
+#################
+########################################################

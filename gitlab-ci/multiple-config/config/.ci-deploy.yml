@@ -1,0 +1,26 @@
+####################################################
+#       Gitlab CI configuration template           #
+#                                                  #
+#   Ver:    1.0.0                                  #
+#   Author: Moein Verkiani                         #
+#   Stage:  Deploy                                 #
+#                                                  #
+#                                                  #
+####################################################
+
+# include:
+#   - local: 'config/.ci-prepare.yml'
+
+
+###################### Deployment ######################
+###### X64 ######
+Deploy:X64:
+  before_script:
+	- echo "Not Implemented"
+#################
+###### X86 ######
+Deploy:X86:
+  before_script:
+	- echo "Not Implemented"
+#################
+########################################################

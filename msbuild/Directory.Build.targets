@@ -1,0 +1,3 @@
+<Project>
+    <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" Condition="$(SolutionFileName.Equals('EdrAgentBuilder.sln', StringComparison.OrdinalIgnoreCase)) Or $(SolutionFileName.Equals('Builder.sln', StringComparison.OrdinalIgnoreCase))"/>
+</Project>

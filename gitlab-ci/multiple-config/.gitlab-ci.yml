@@ -1,0 +1,98 @@
+include:
+  - local: 'config/.ci-rules.yml'
+  - local: 'config/.ci-build.yml'
+  - local: 'config/.ci-test.yml'
+  - local: 'config/.ci-deploy.yml'
+
+stages:
+  - build
+  - test
+  - deploy
+
+######################## Build ########################
+###### X64 ######
+Build:X64:
+  stage: build
+  rules:
+    - !reference [.Rule:MergeRequestOnMain, rules]
+  artifacts:
+    expire_in: 2 days
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x64"
+    paths:
+      - Build/bin/x64/Release/
+#################
+###### X86 ######
+Build:X86:
+  stage: build
+  rules:
+    - !reference [.Rule:MergeRequestOnMain, rules]
+  artifacts:
+    expire_in: 2 days
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x86"
+    paths:
+      - Build/bin/x86/Release/
+#################
+#########################################################
+
+######################### Tests #########################
+###### X64 ######
+Test:X64:
+  stage: test
+  rules:
+    - !reference [.Rule:PushExceptOnMain, rules]
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x64"
+    paths:
+      - $REPORT_PATH
+    reports:
+      junit: $REPORT_PATH
+#################
+###### X86 ######
+Test:X86:
+  stage: test
+  rules:
+    - !reference [.Rule:PushExceptOnMain, rules]
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x86"
+    paths:
+      - $REPORT_PATH
+    reports:
+      junit: $REPORT_PATH
+#################
+###### All ######
+Test:All:
+  stage: test
+  rules:
+    - !reference [.Rule:MergeRequestOnMain, rules]
+  dependencies:
+    - Build:X64
+    - Build:X86
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME"
+    paths:
+      - $REPORT_PATH_X64
+      - $REPORT_PATH_X86
+    reports:
+      junit:
+        - $REPORT_PATH_X64
+        - $REPORT_PATH_X86
+#################
+#########################################################
+
+###################### Deployment ######################
+###### X64 ######
+Deploy:X64:
+  stage: deploy
+  rules:
+    - !reference [.Rule:MergedToMain, rules]
+#################
+###### X86 ######
+Build:X86:
+  stage: deploy
+  rules:
+    - !reference [.Rule:MergedToMain, rules]
+#################
+#########################################################
