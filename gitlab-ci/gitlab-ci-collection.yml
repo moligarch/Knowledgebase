@@ -15,6 +15,66 @@ variables:
   REPORT_PATH_X86:          test_x86_report.xml
 
 # References ===================================================
+.TearDown:RevertGitToOrigin:
+  script:
+    - cd $BUILDER_DIR
+    - $projectPath = Join-Path -Path ".\projects" -ChildPath "gLib"
+    - |
+      Push-Location $projectPath
+      try {
+          Write-Host "Checking out back to original branch $originalBranch and commit $originalCommitHash..."
+          git checkout "$originalBranch"
+          git reset --hard "$originalCommitHash"
+          
+          Write-Host "Successfully checked out back to original branch $originalBranch and commit $originalCommitHash"
+      }
+      catch {
+          Write-Host "An error occurred: $_"
+          exit 1
+      }
+      finally {
+          Pop-Location
+      }
+.Prepare:ProjectGit:
+  before_script:
+    - $CWD = "$(pwd)"
+    - $releaseDir = Join-Path $CWD Build/bin/x86/Release
+    - |
+      if (-not (Test-Path -Path $releaseDir)) {
+        New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+      }    
+    - cd $BUILDER_DIR
+    - $projectPath = Join-Path -Path ".\projects" -ChildPath "gLib"
+    - |
+      if (-not (Test-Path $projectPath)) {
+        Write-Host "Project not found at $projectPath"
+        exit 1
+      }
+      Push-Location $projectPath
+      try {
+        # Store current branch and commit hash
+        $originalBranch = git symbolic-ref --short HEAD
+        $originalCommitHash = git rev-parse HEAD
+        
+        Write-Host "Current branch: $originalBranch"
+        Write-Host "Current commit hash: $originalCommitHash"
+        
+        $targetCommitHash = $CI_COMMIT_SHA
+        Write-Host "Target commit hash: $targetCommitHash"
+        
+        # Checkout project to target commit
+        Write-Host "Checking out project to commit $targetCommitHash..."
+        git checkout $targetCommitHash
+        
+        Write-Host "Successfully checked out project to commit $targetCommitHash"
+      }
+      catch {
+        Write-Host "An error occurred: $_"
+        exit 1
+      }
+      finally {
+        Pop-Location
+      }
 .Prepare:Builder:
   before_script:
     - $installPath = &(Join-Path ${env:ProgramFiles(x86)} "\Microsoft Visual Studio\Installer\vswhere.exe") -latest -property installationpath
@@ -93,6 +153,7 @@ Build:X64:
     - !reference [.Rule:MergedToMain, rules]
   before_script:
     - !reference [.Prepare:Builder, before_script]
+    - !reference [.Prepare:ProjectGit, before_script]
   script:
     - echo "Hello, $GITLAB_USER_LOGIN! `nBuild started ..."
     - $CWD = "$(pwd)"
@@ -120,6 +181,7 @@ Build:X64:
             Write-Warning "Failed to copy $($file.Name)= $_"
         }
       }
+    - !reference [.TearDown:RevertGitToOrigin, script]
     - cd $CWD
     - pwd
   artifacts:
@@ -138,13 +200,6 @@ Build:X86:
     - !reference [.Prepare:Builder, before_script]
   script:
     - echo "Hello, $GITLAB_USER_LOGIN! `nBuild started ..."
-    - $CWD = "$(pwd)"
-    - $releaseDir = Join-Path $CWD Build/bin/x86/Release
-    - |
-      if (-not (Test-Path -Path $releaseDir)) {
-        New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
-      }    
-    - cd $BUILDER_DIR
     - msbuild.exe $SOLUTION $BUILD_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $DISABLE_VCPKG_MANIFEST -m
     - !reference [.Prepare:BuiltItemX86, script]
     - |

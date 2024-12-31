@@ -1,0 +1,253 @@
+stages:
+  - build
+  - test
+  - sync
+
+variables:
+    GIT_SUBMODULE_STRATEGY:     recursive
+    GIT_SUBMODULE_DEPTH:        1
+    SOLUTION:                   ./mysolution.sln                # Adjust the arguments as necessary
+    BUILD_PROJECT:              /t:myproject                    # Adjust the arguments as necessary
+    TEST_PROJECT:               /t:myproject_test               # Adjust the arguments as necessary
+    CONFIGURATION:              /p:Configuration=Release
+    TARGET_PLATFORM_X64:        /p:Platform=x64                 # Adjust the arguments as necessary
+    TARGET_PLATFORM_X86:        /p:Platform=x86                 # Adjust the arguments as necessary
+    CI_INCLUDE_DIR:             /p:CiIncludeDir=${PROJECT_DIR}  # Adjust it in case you add dependency to project
+    CI_LIB_DIR_X64:             /p:CiLibDir=${BIN_DIR}/x64
+    CI_LIB_DIR_X86:             /p:CiLibDir=${BIN_DIR}/x86
+    DISABLE_VCPKG_MANIFEST:     /p:VcpkgEnableManifest=false
+    REPORT_PATH_X64:            test_x64_report.xml
+    REPORT_PATH_X86:            test_x86_report.xml
+
+# References ===================================================
+.Prepare:Builder:
+  before_script:
+    - $VisualStudioPath = &(Join-Path ${env:ProgramFiles(x86)} "\Microsoft Visual Studio\Installer\vswhere.exe") -latest -property installationpath
+    - $VisualStudioDevShellPath = (Join-Path -Path $VisualStudioPath -ChildPath "\Common7\Tools\Launch-VsDevShell.ps1")
+    - |
+      & $VisualStudioDevShellPath -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+      & $VCPKG_EXEC integrate install                           # Required: Introduce VCPKG environmnet to runner
+
+.Prepare:TestFilter:
+  before_script:
+    - echo "Parsing commit message for test specifications..."
+    - $TEST_FILTER = & {param([string]$Message) if($Message -match '\[\[(.+)\]\]'){return $Matches[1]}else{return ""}} -Message $CI_COMMIT_MESSAGE
+    - if ($TEST_FILTER -eq "skip") {exit 0}
+    - echo "Test suite and case extracted:`n$TEST_FILTER"
+
+.Prepare:DeployItem:
+  before_script:
+    - |
+      # Check if the source path exists
+      if (-not (Test-Path -Path $sourcePath)) {
+        Write-Error "Source path does not exist."
+        exit(3)
+      }
+      # Ensure DEPLOY_DIR exists
+      if (-not (Test-Path -Path $DEPLOY_DIR_TARGET)) {
+        New-Item -ItemType Directory -Force -Path $DEPLOY_DIR_TARGET | Out-Null
+      }
+      # Get all files in the source directory
+      $filesToCopy = Get-ChildItem -Path "$sourcePath\*" -File -Include @("file.name.to.include")
+
+.Rule:PushExceptOnMain:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH' 
+      when: always
+      allow_failure: false
+
+.Rule:MergeRequestOnMain:
+  rules:
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+      allow_failure: false
+
+.Rule:MergedToMain:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"'
+      when: manual
+
+# ===================================================
+
+# Builds ===================================================
+Build:X64:
+  stage: build
+  rules:
+    - !reference [.Rule:MergedToMain, rules]
+  before_script:
+    - !reference [.Prepare:Builder, before_script]
+  script:
+    - echo "Hello, $GITLAB_USER_LOGIN! `nBuild started ..."
+    - msbuild.exe $SOLUTION $BUILD_PROJECT $CONFIGURATION $TARGET_PLATFORM_X64 $CI_INCLUDE_DIR $CI_LIB_DIR_X64 $DISABLE_VCPKG_MANIFEST
+  artifacts:
+    when: always
+    expire_in: 2 days
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x64"
+    paths:
+      - Build/bin/x64/Release/myproject.lib
+      - Build/bin/x64/Release/myproject.pdb
+# ===================================================
+Build:X86:
+  stage: build
+  rules:
+    - !reference [.Rule:MergedToMain, rules]
+  before_script:
+    - !reference [.Prepare:Builder, before_script]
+  script:
+    - echo "Hello, $GITLAB_USER_LOGIN! `nBuild started ..."
+    - msbuild.exe $SOLUTION $BUILD_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $CI_INCLUDE_DIR $CI_LIB_DIR_X86 $DISABLE_VCPKG_MANIFEST
+  artifacts:
+    when: always
+    expire_in: 2 days
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x86"
+    paths:
+      - Build/bin/x86/Release/myproject.lib
+      - Build/bin/x86/Release/myproject.pdb
+# ===================================================
+
+# Tests ===================================================
+Test:X64:
+  stage: test
+  rules:
+    - !reference [.Rule:PushExceptOnMain, rules]
+  before_script:
+    - !reference [.Prepare:Builder, before_script]
+    - !reference [.Prepare:TestFilter, before_script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X64 $CI_INCLUDE_DIR $CI_LIB_DIR_X64 $DISABLE_VCPKG_MANIFEST
+  script:
+    - echo "Running x64 tests ..."
+    - ./Build/bin/x64/Release/myproject_test.exe --gtest_filter=$TEST_FILTER --gtest_output="xml:$REPORT_PATH_X64"
+    - pwd
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x64"
+    paths:
+      - $REPORT_PATH_X64
+    reports:
+      junit: $REPORT_PATH_X64
+# ===================================================
+Test:X86:
+  stage: test
+  rules:
+    - !reference [.Rule:PushExceptOnMain, rules]
+  before_script:
+    - !reference [.Prepare:Builder, before_script]
+    - !reference [.Prepare:TestFilter, before_script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $CI_INCLUDE_DIR $CI_LIB_DIR_X86 $DISABLE_VCPKG_MANIFEST
+  script:
+    - echo "Running x86 tests ..."
+    - ./Build/bin/x86/Release/myproject_test.exe --gtest_filter=$TEST_FILTER --gtest_output="xml:$REPORT_PATH_X86"
+    - pwd
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME-x86"
+    paths:
+      - $REPORT_PATH_X86
+    reports:
+      junit: $REPORT_PATH_X86
+# ===================================================
+Test:X64:All:
+  stage: test
+  rules:
+    - !reference [.Rule:MergeRequestOnMain, rules]
+  before_script:
+    - !reference [.Prepare:Builder, before_script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X64 $CI_INCLUDE_DIR $CI_LIB_DIR_X64 $DISABLE_VCPKG_MANIFEST
+  script:
+    - echo "Running All tests(x64) ..."
+    - ./Build/bin/x64/Release/myproject_test.exe --gtest_output="xml:$REPORT_PATH_X64"
+    - echo "`n=======  x64 Tests completed =======`n"
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME"
+    paths:
+      - $REPORT_PATH_X64
+    reports:
+      junit:
+        - $REPORT_PATH_X64
+# ===================================================
+Test:X86:All:
+  stage: test
+  rules:
+    - !reference [.Rule:MergeRequestOnMain, rules]
+  before_script:
+    - !reference [.Prepare:Builder, before_script]
+    - echo "Hello, $GITLAB_USER_LOGIN! `nPreparing Tests ..."
+    - msbuild.exe $SOLUTION $TEST_PROJECT $CONFIGURATION $TARGET_PLATFORM_X86 $CI_INCLUDE_DIR $CI_LIB_DIR_X86 $DISABLE_VCPKG_MANIFEST
+  script:
+    - echo "Running All tests(x86) ..."
+    - ./Build/bin/x86/Release/myproject_test.exe --gtest_output="xml:$REPORT_PATH_X86"
+    - echo "`n=======  x86 Tests completed =======`n"
+  artifacts:
+    when: always
+    name: "$CI_JOB_STAGE-$CI_COMMIT_REF_NAME"
+    paths:
+      - $REPORT_PATH_X86
+    reports:
+      junit:
+        - $REPORT_PATH_X86
+# ===================================================
+
+
+
+
+# Synchronization ===================================================
+UpgradeBin:X64:
+  variables:
+    DEPLOY_DIR_TARGET: "${BIN_DIR}/x64"
+  dependencies:
+    - Build:X64
+  needs:
+    - job: Build:X64
+  stage: sync
+  rules:
+    - !reference [.Rule:MergedToMain, rules]
+  before_script:
+    - $sourcePath = Join-Path -Path $(pwd) -ChildPath "Build\bin\x64\Release\"
+    - !reference [.Prepare:DeployItem, before_script]
+  script:
+    - echo "Start Deploying x64 output"
+    - |
+      foreach ($file in $filesToCopy) {
+        $destinationPath = Join-Path -Path $DEPLOY_DIR_TARGET -ChildPath $file.Name;
+        
+        try {
+            Copy-Item -Path $file.FullName -Destination $destinationPath -Force;
+            Write-Output "Upload $($file.Name) to $DEPLOY_DIR_TARGET";
+        }
+        catch {
+            Write-Warning "Failed to copy $($file.Name): $_"
+        }
+      }
+# ===================================================
+UpgradeBin:X86:
+  variables:
+    DEPLOY_DIR_TARGET: "${BIN_DIR}/x86"
+  dependencies:
+    - Build:X86
+  needs:
+    - job: Build:X86
+  stage: sync
+  rules:
+    - !reference [.Rule:MergedToMain, rules]
+  before_script:
+    - $sourcePath = Join-Path -Path $(pwd) -ChildPath "Build\bin\x86\Release\"
+    - !reference [.Prepare:DeployItem, before_script]
+  script:
+    - echo "Start Deploying x86 output"
+    - |
+      foreach ($file in $filesToCopy) {
+        $destinationPath = Join-Path -Path $DEPLOY_DIR_TARGET -ChildPath $file.Name;
+        
+        try {
+            Copy-Item -Path $file.FullName -Destination $destinationPath -Force;
+            Write-Output "Upload $($file.Name) to $DEPLOY_DIR_TARGET";
+        }
+        catch {
+            Write-Warning "Failed to copy $($file.Name): $_"
+        }
+      }
+# ===================================================
