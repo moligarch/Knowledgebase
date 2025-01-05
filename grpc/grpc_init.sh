@@ -45,7 +45,7 @@ configure_cmake() {
     #Build Dir: -B "$build_dir"
     #Install Dir: -DCMAKE_INSTALL_PREFIX="$install_dir"
     
-    cmake ../..
+    cmake ../..                                \
         -DgRPC_INSTALL=ON                      \
         -DCMAKE_BUILD_TYPE=Release             \
         -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF    \
