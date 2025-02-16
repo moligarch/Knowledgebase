@@ -1,6 +1,11 @@
 #!/bin/bash
 
 DEBUG=false
+CMAKE_OPTIONS="-DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
+               -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
+               -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF \
+               -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
+               -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF"
 
 # Function to print in debug mode
 debug_echo() {
@@ -22,12 +27,29 @@ parse_args() {
                 DEBUG=true
                 shift
                 ;;
-            -D|--verbose)
-                DEBUG=true
+            --csharp)
+                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF/-DgRPC_BUILD_GRPC_CSHARP_PLUGIN=ON}"
+                shift
+                ;;
+            --python)
+                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF/-DgRPC_BUILD_GRPC_PYTHON_PLUGIN=ON}"
+                shift
+                ;;
+            --node)
+                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF/-DgRPC_BUILD_GRPC_NODE_PLUGIN=ON}"
+                shift
+                ;;
+            --php)
+                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF/-DgRPC_BUILD_GRPC_PHP_PLUGIN=ON}"
+                shift
+                ;;
+            --ruby)
+                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF/-DgRPC_BUILD_GRPC_RUBY_PLUGIN=ON}"
                 shift
                 ;;
             *)
-                break
+                echo "Unknown option: $1"
+                exit 1
                 ;;
         esac
     done
@@ -35,7 +57,6 @@ parse_args() {
 
 # Parse arguments
 parse_args "$@"
-
 
 clone_repo() {
     local src_dir="$1"
@@ -88,9 +109,9 @@ configure_cmake() {
     
     echo .
     debug_echo "============================="
-    debug_echo "Source directory (confiure cmake func) -> $src_dir"
-    debug_echo "Build directory (confiure cmake func) -> $build_dir"
-    debug_echo "Install directory (confiure cmake func) -> $install_dir"
+    debug_echo "Source directory (configure cmake func) -> $src_dir"
+    debug_echo "Build directory (configure cmake func) -> $build_dir"
+    debug_echo "Install directory (configure cmake func) -> $install_dir"
     debug_echo "============================="
     echo .
     
@@ -99,7 +120,7 @@ configure_cmake() {
     cd "$build_dir"
     
     echo .
-    debug_echo "Current Directory (confiure cmake func) -> $(pwd)"
+    debug_echo "Current Directory (configure cmake func) -> $(pwd)"
     echo .
     
     if [ "$DEBUG" = true ]; then
@@ -109,11 +130,7 @@ configure_cmake() {
     cmake ../..                                \
         -DgRPC_INSTALL=ON                      \
         -DCMAKE_BUILD_TYPE=Release             \
-        -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF    \
-        -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF      \
-        -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF       \
-        -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF    \
-        -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF
+        $CMAKE_OPTIONS
         
     if [ "$DEBUG" = true ]; then
         set +x 
