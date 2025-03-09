@@ -69,6 +69,7 @@ clone_repo() {
     else
         cd "$src_dir"
         git pull
+        git submodule update --init --recursive
         cd ..
         return 0 #Success
     fi
