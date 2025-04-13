@@ -1,205 +1,138 @@
 #!/bin/bash
 
-DEBUG=false
+# Constants
+readonly VERSION="1.69.0"
+readonly SOURCE_REPO_DIR="$(pwd)/grpc_${VERSION}"
+readonly BUILD_DIR="${SOURCE_REPO_DIR}/cmake/build"
+readonly DEFAULT_CONCURRENCY=8
+
+# Configuration
 CMAKE_OPTIONS="-DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
-               -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
-               -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF \
-               -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
-               -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF"
+-DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
+-DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF \
+-DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF \
+-DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF"
 
-# Function to print in debug mode
-debug_echo() {
-    if [ "$DEBUG" = true ]; then
-        echo "Debug: $@"
-    fi
+# Error handling
+error_handler() {
+    local message="$1"
+    local exit_code="${2:-1}"
+    echo "ERROR: ${message}" >&2
+    exit "${exit_code}"
 }
 
-handle_error() {
-    echo "Error in $(basename "$0") at line $LINENO: $1"
-    exit 1
-}
-
-# Function to parse command-line arguments
+# Argument parsing
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -d|--debug)
-                DEBUG=true
-                shift
-                ;;
-            --csharp)
-                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF/-DgRPC_BUILD_GRPC_CSHARP_PLUGIN=ON}"
-                shift
-                ;;
-            --python)
-                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF/-DgRPC_BUILD_GRPC_PYTHON_PLUGIN=ON}"
-                shift
-                ;;
-            --node)
-                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF/-DgRPC_BUILD_GRPC_NODE_PLUGIN=ON}"
-                shift
-                ;;
-            --php)
-                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF/-DgRPC_BUILD_GRPC_PHP_PLUGIN=ON}"
-                shift
-                ;;
-            --ruby)
-                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF/-DgRPC_BUILD_GRPC_RUBY_PLUGIN=ON}"
+            --csharp|--python|--node|--php|--ruby)
+                local plugin="${1:2}"
+                CMAKE_OPTIONS="${CMAKE_OPTIONS//-DgRPC_BUILD_GRPC_${plugin^^}_PLUGIN=OFF/-DgRPC_BUILD_GRPC_${plugin^^}_PLUGIN=ON}"
                 shift
                 ;;
             *)
-                echo "Unknown option: $1"
-                exit 1
+                error_handler "Unknown option: $1"
                 ;;
         esac
     done
 }
 
-# Parse arguments
-parse_args "$@"
-
+# Repository management
 clone_repo() {
     local src_dir="$1"
     local target_branch="$2"
-
-    if [ ! -d "$src_dir/.git" ]; then
-        echo "Git repo doesn't exist, starting cloning it at $src_dir"
-        git clone --depth 1 --branch "$target_branch" --recurse-submodules --shallow-submodules https://github.com/grpc/grpc "$src_dir"
-        return 0 #Success
-    else
-        cd "$src_dir"
-        git pull
-        git submodule update --init --recursive
-        cd ..
-        return 0 #Success
-    fi
-}
-
-install_dependencies() {
-    echo .
-    echo "Installing dependencies (sudo privilege needed) ..."
-    echo .
     
-    if [ "$DEBUG" = true ]; then
-        set -x
+    if [ ! -d "$src_dir/.git" ]; then
+        if ! git clone --depth 1 --branch "$target_branch" --recurse-submodules --shallow-submodules https://github.com/grpc/grpc "$src_dir"; then
+            error_handler "Failed to clone repository"
+        fi
+    else
+        if ! (cd "$src_dir" && git submodule update --init --recursive); then
+            error_handler "Failed to update repository"
+        fi
     fi
-        
-    sudo apt-get update
-    sudo apt-get install -y \
-        build-essential     \
-        cmake               \
-        pkg-config          \
-        python3             \
-        python3-pip
-        
-    if [ "$DEBUG" = true ]; then
-        set +x
-    fi  
-        
-    # Check if installation was successful
-    if [ $? -ne 0 ]; then
-        handle_error "Failed to install dependencies"
-    fi
-    return 0 #Success
 }
 
+# Dependency installation
+install_dependencies() {
+    if ! sudo apt-get update; then
+        error_handler "Failed to update package lists"
+    fi
+    
+    local packages="build-essential cmake pkg-config python3 python3-pip"
+    if ! sudo apt-get install -y $packages; then
+        error_handler "Failed to install dependencies"
+    fi
+}
+
+# CMake configuration
 configure_cmake() {
     local src_dir="$1"
     local build_dir="$2"
-    local install_dir="$3"
-    
-    echo .
-    debug_echo "============================="
-    debug_echo "Source directory (configure cmake func) -> $src_dir"
-    debug_echo "Build directory (configure cmake func) -> $build_dir"
-    debug_echo "Install directory (configure cmake func) -> $install_dir"
-    debug_echo "============================="
-    echo .
     
     rm -rf "$build_dir"
     mkdir -p "$build_dir"
     cd "$build_dir"
     
-    echo .
-    debug_echo "Current Directory (configure cmake func) -> $(pwd)"
-    echo .
+    local cmake_cmd=(
+        cmake
+        ../..
+        -DgRPC_INSTALL=ON
+        -DCMAKE_BUILD_TYPE=Release
+        ${CMAKE_OPTIONS}
+    )
     
-    if [ "$DEBUG" = true ]; then
-        set -x
+    if ! "${cmake_cmd[@]}"; then
+        error_handler "Failed to configure CMake"
     fi
-    
-    cmake ../..                                \
-        -DgRPC_INSTALL=ON                      \
-        -DCMAKE_BUILD_TYPE=Release             \
-        $CMAKE_OPTIONS
-        
-    if [ "$DEBUG" = true ]; then
-        set +x 
-    fi
-        
-    # Check if CMake configuration was successful
-    if [ $? -ne 0 ]; then
-        handle_error "Failed to configure CMake"
-    fi
-    return 0  # Success
 }
 
+# Build and installation
 build_and_install() {
     local build_dir="$1"
+    local concurrency="${2:-$DEFAULT_CONCURRENCY}"
+    local build_success=true
+    local install_success=true
     
-    echo .
-    debug_echo "============================="
-    debug_echo "Build directory (build install func) -> $build_dir"
-    debug_echo "============================="
-    echo .
-    
-    mkdir -p "$build_dir"
     cd "$build_dir"
-
-    echo "Building gRPC..."
     
-    if [ "$DEBUG" = true ]; then
-        set -x
-    fi
-        
-    make -j 4
-
-    echo "Installing gRPC..."
-    make install
-    
-    if [ "$DEBUG" = true ]; then
-        set +x
+    if ! make -j "$concurrency"; then
+        build_success=false
+        error_handler "Failed to build gRPC"
     fi
     
-    # Check if building and installing were successful
-    if [ $? -ne 0 ]; then
-        handle_error "Failed to build and install gRPC"
+    if [ "$build_success" = true ] && ! make install; then
+        install_success=false
+        error_handler "Failed to install gRPC"
     fi
-    return 0  # Success
+    
+    if [ "$build_success" = true ] && [ "$install_success" = true ]; then
+        if [ -n "$SOURCE_REPO_DIR" ] && [ -d "$SOURCE_REPO_DIR" ]; then
+            if ! rm -rf "$SOURCE_REPO_DIR"; then
+                error_handler "Failed to remove source directory"
+            fi
+        fi
+    fi
 }
 
+# Main execution
 main() {
-    version="1.69.0"
-    source_repo_dir="$(pwd)/grpc_$version"
-    build_dir="$source_repo_dir/cmake/build"
-
-    echo "Version:           $version"
-    echo "Source Repo Dir:   $source_repo_dir"
-    echo "Build Dir:         $build_dir"
-
-    # Clone repo
-    clone_repo "$source_repo_dir" "v$version" || handle_error "Failed to clone repository"
-
-    # Install dependencies
-    install_dependencies || handle_error "Failed to install dependencies"
-
-    # Configure CMake
-    configure_cmake "$source_repo_dir" "$build_dir" "$install_dir" || handle_error "Failed to configure CMake"
-
-    # Build and install
-    build_and_install "$build_dir" || handle_error "Failed to build and install gRPC"
-
-    echo "Build process completed successfully!"
+    echo "Starting gRPC installation process..."
+    echo "Version: $VERSION"
+    echo "Source directory: $SOURCE_REPO_DIR"
+    echo "Build directory: $BUILD_DIR"
+    
+    parse_args "$@"
+    
+    clone_repo "$SOURCE_REPO_DIR" "v$VERSION"
+    install_dependencies
+    configure_cmake "$SOURCE_REPO_DIR" "$BUILD_DIR"
+    build_and_install "$BUILD_DIR"
+    
+    echo "gRPC installation completed successfully!"
 }
 
-main
+# Trap errors and run main
+trap 'error_handler "Script failed unexpectedly"' ERR
+main "$@"
+trap - ERR
